@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Prototipo AG - Ubicación de Sensores IDS/IPS en Campus</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <h1>Ubicación Óptima de Sensores IDS/IPS con Algoritmos Genéticos</h1>
+      <p>Simulación interactiva paso a paso en redes de campus universitario · UMSA</p>
+    </div>
+    <span class="badge">Computación Evolutiva · Python + HTML</span>
+  </header>
+
+  <main class="container">
+    <!-- Panel de configuración -->
+    <section class="card">
+      <h2>1. Parámetros del Ejemplo y del Algoritmo Genético</h2>
+      <div class="grid-form">
+        <label>Topología de Red
+          <select id="topology">
+            <option value="campus_jerarquica" selected>Jerárquica (Campus Universitario)</option>
+            <option value="libre_escala">Libre de Escala (Barabási-Albert)</option>
+            <option value="mundo_pequeno">Mundo Pequeño (Watts-Strogatz)</option>
+            <option value="aleatoria">Aleatoria (Erdős-Rényi)</option>
+          </select>
+        </label>
+        <label>Nodos en la red (n)
+          <input type="number" id="n_nodes" value="16" min="6" max="50" />
+        </label>
+        <label>Presupuesto Máximo (B)
+          <input type="number" id="budget" value="110" min="20" max="1000" step="5" />
+        </label>
+        <label>Tamaño Población
+          <input type="number" id="population_size" value="40" min="10" max="200" />
+        </label>
+        <label>Generaciones
+          <input type="number" id="generations" value="50" min="5" max="300" />
+        </label>
+        <label>Prob. Cruce
+          <input type="number" id="crossover_prob" value="0.85" min="0" max="1" step="0.05" />
+        </label>
+        <label>Tasa Mutación
+          <input type="number" id="mutation_prob" value="0.03" min="0" max="0.5" step="0.01" />
+        </label>
+        <label>Penalización (λ)
+          <input type="number" id="penalty" value="10" min="1" max="100" step="1" />
+        </label>
+        <label>Semilla aleatoria
+          <input type="number" id="seed" value="42" min="1" max="99999" />
+        </label>
+      </div>
+      <div class="actions">
+        <button id="btn-run" class="btn-primary">▶ Ejecutar Ejemplo y Ver Proceso</button>
+        <button id="btn-benchmark" class="btn-secondary">📊 Comparar 4 Topologías (Exportar CSV/PNG)</button>
+      </div>
+    </section>
+
+    <!-- Resumen de resultados finales -->
+    <section class="card" id="summary-section" style="display:none;">
+      <h2>2. Resultado Óptimo Encontrado vs. Métodos Base</h2>
+      <div class="kpi-grid">
+        <div class="kpi">
+          <span class="kpi-label">Cobertura Crítica (AG)</span>
+          <strong class="kpi-value" id="kpi-cov">-</strong>
+          <small id="kpi-cov-detail">-</small>
+        </div>
+        <div class="kpi">
+          <span class="kpi-label">Costo Total / Presupuesto</span>
+          <strong class="kpi-value" id="kpi-cost">-</strong>
+          <small id="kpi-sensors">-</small>
+        </div>
+        <div class="kpi">
+          <span class="kpi-label">Aptitud Final (Fitness)</span>
+          <strong class="kpi-value" id="kpi-fit">-</strong>
+          <small id="kpi-conv">-</small>
+        </div>
+        <div class="kpi">
+          <span class="kpi-label">Comparativa Greedy / Aleatorio</span>
+          <strong class="kpi-value" id="kpi-base">-</strong>
+          <small id="kpi-base-cost">-</small>
+        </div>
+      </div>
+
+      <div class="selected-nodes-box">
+        <strong>Nodos seleccionados para instalar sensor IDS/IPS (Gen = 1):</strong>
+        <div id="selected-nodes-list" class="chips"></div>
+      </div>
+    </section>
+
+    <!-- Visualización interactiva paso a paso -->
+    <section class="card" id="process-section" style="display:none;">
+      <h2>3. Proceso Evolutivo Paso a Paso (Generación por Generación)</h2>
+      <div class="player-controls">
+        <button id="btn-prev" class="btn-small">⏮ Anterior</button>
+        <button id="btn-play" class="btn-small">▶ Reproducir Evolución</button>
+        <button id="btn-next" class="btn-small">Siguiente ⏭</button>
+        <label class="slider-label">
+          Generación: <strong id="gen-label">1</strong> / <span id="gen-max">50</span>
+          <input type="range" id="gen-slider" min="0" max="49" value="0" />
+        </label>
+      </div>
+
+      <div class="two-cols">
+        <!-- Grafo de red -->
+        <div class="panel">
+          <h3>Topología de Red y Ubicación de Sensores</h3>
+          <canvas id="network-canvas" width="540" height="380"></canvas>
+          <div class="legend">
+            <span><i class="dot blue"></i> Nodo con Sensor (1)</span>
+            <span><i class="dot gray"></i> Sin Sensor (0)</span>
+            <span><i class="line red"></i> Enlace crítico cubierto</span>
+            <span><i class="line orange"></i> Enlace crítico sin cubrir</span>
+            <span><i class="line light"></i> Enlace estándar</span>
+          </div>
+        </div>
+
+        <!-- Curva de convergencia -->
+        <div class="panel">
+          <h3>Curva de Convergencia (Aptitud)</h3>
+          <canvas id="chart-canvas" width="540" height="380"></canvas>
+          <p class="hint">Línea azul: mejor aptitud de la generación · Línea punteada: aptitud promedio de la población.</p>
+        </div>
+      </div>
+
+      <!-- Detalle del cromosoma y operadores genéticos en esa generación -->
+      <div class="panel mt-16">
+        <h3>Detalle Interno del Algoritmo Genético en la Generación <span id="op-gen-num">1</span></h3>
+        <div class="gen-metrics" id="gen-metrics-bar"></div>
+
+        <div class="chromosome-view">
+          <p><strong>Mejor Cromosoma Binario de esta generación:</strong></p>
+          <div id="chromosome-cells" class="chrom-grid"></div>
+        </div>
+
+        <div class="operators-box" id="operators-detail"></div>
+      </div>
+    </section>
+
+    <!-- Tabla de benchmark multi-topología -->
+    <section class="card" id="benchmark-section" style="display:none;">
+      <h2>4. Comparativa Experimental entre Topologías</h2>
+      <p id="benchmark-msg" class="hint"></p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Topología</th>
+              <th>Cobertura AG (%)</th>
+              <th>Costo Prom. AG</th>
+              <th>Gen. Convergencia</th>
+              <th>Cobertura Greedy (%)</th>
+              <th>Cobertura Aleatoria (%)</th>
+            </tr>
+          </thead>
+          <tbody id="benchmark-tbody"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
